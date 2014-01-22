@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <sys/sendfile.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <errno.h>
 
 #define GCRY_CIPHER GCRY_CIPHER_AES128
 
@@ -55,10 +57,8 @@ int main (int argc, char const *argv[])
 	printf("Key: ");
 	printf(key);
 	printf("\n");
+
 	const int IV[16] = {5844};
-	printf("IV: ");
-	printf(IV);
-	printf("\n");
 	const char *name = "aes128";
 	int algorithm = gcry_cipher_map_name(name);
 	size_t blockLength = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
@@ -105,6 +105,17 @@ int main (int argc, char const *argv[])
 	/*
 		Send the buffer to remote computer
 	*/
+	int port = 60888;
+	int sock;
+	
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (sock == -1) {
+		fprintf(stderr, "unable to create socket: %s\n", strerror(errno));
+		exit(1);
+	}
+	
+	
 	
 	return 0;
 }
