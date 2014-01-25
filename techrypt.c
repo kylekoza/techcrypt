@@ -5,18 +5,19 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
+#include <string.h>
 #include "optparse.h"
 
 #define GCRY_CIPHER GCRY_CIPHER_AES128
 
 int local = 0;
-struct opt_str fn = {NULL, 0};
+struct opt_str ip = {NULL, 0};
 
 struct opt_spec options[] = {
-	{opt_text, OPT_NO_SF, "FILE", OPT_NO_METAVAR, "File to encrypt", OPT_NO_DATA},
+	{opt_text, OPT_NO_SF, "FILE", OPT_NO_METAVAR, "input file to encrypt", OPT_NO_DATA},
     {opt_help, "h", "--help", OPT_NO_METAVAR, OPT_NO_HELP, OPT_NO_DATA},
-//    {opt_store_str, "f", "--file", " FILE",
-//     "File to encrypt", &fn},
+	{opt_store_str, "d", OPT_NO_LF, " < IP-addr:port >", 
+	 "The IP address and port to which to send the encrypted file", &ip},
     {opt_store_1, "l", "--local", OPT_NO_METAVAR,
      "Encrypt file locally", &local},
     {OPT_NO_ACTION}
@@ -26,10 +27,13 @@ int main (int argc, char **argv) {
 	/*
 		Parse arguments
 	*/
-	if(opt_parse("usage: %s FILE [options]", options, argv) == 0) {
+	if(opt_parse("usage: %s < input file > [options]", options, argv) == 0) {
 		opt_help(0, NULL);
 	}
 	
+	if (ip.s) {
+		ip.s[0] = ip.s0;
+	}
 	
 	/*
 		Read in password
@@ -69,7 +73,7 @@ int main (int argc, char **argv) {
 	unsigned long iterations = 4096;
 	gpg_error_t errStatus; 
 	
-//	printf("gcry_kdf_derive(%s, %u, %d, %s, %u, %d, %d, key)\n", pass, strlen(pass), GCRY_KDF_PBKDF2, salt, strlen(salt), iterations, keyLength);
+	printf("gcry_kdf_derive(%s, %u, %d, %s, %u, %d, %d, key)\n", pass, strlen(pass), GCRY_KDF_PBKDF2, salt, strlen(salt), iterations, keyLength);
 	
 	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, saltLen, iterations, keyLength, key);
 	
@@ -132,7 +136,7 @@ int main (int argc, char **argv) {
 			Write the buffer to a file
 		*/
 		FILE *ofp;
-		ofp = fopen("test.gt", "w");
+		ofp = fopen(strcat(argv[1], ".gt"), "w");
 	
 		fprintf(ofp, buffer);
 	

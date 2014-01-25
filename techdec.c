@@ -5,16 +5,32 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
+#include <string.h>
+#include "optparse.h"
 
 #define GCRY_CIPHER GCRY_CIPHER_AES128
 
+int local = 0;
+int port = 8888; // Use 8888 as default
 
-int main (int argc, char const *argv[])
-{
+struct opt_spec options[] = {
+	{opt_text, OPT_NO_SF, "FILE", OPT_NO_METAVAR, "If specified with -l then decrypts FILE otherwise decrypts to FILE", OPT_NO_DATA},
+    {opt_help, "h", "--help", OPT_NO_METAVAR, OPT_NO_HELP, OPT_NO_DATA},
+	{opt_store_int, "d", OPT_NO_LF, " < port >", 
+	 "The port from which to receive the encrypted file", &port},
+    {opt_store_1, "l", "--local", OPT_NO_METAVAR,
+     "Encrypt file locally", &local},
+    {OPT_NO_ACTION}
+};
+
+int main (int argc, char **argv) {
 	/*
 		Parse arguments
 	*/
-
+	if(opt_parse("usage: %s < filename > [options]", options, argv) == 0) {
+		opt_help(0, NULL);
+	}
+		
 	/*
 		Read in password
 	*/
@@ -45,29 +61,29 @@ int main (int argc, char const *argv[])
 	/*
 		Key Generation
 	*/
-	unsigned char key[16];
-//	size_t keyLength = gcry_cipher_get_algo_keylen(GCRY_CIPHER);
-	size_t keyLength = 16;
-
+	char key[16] = "";
+	size_t keyLength = gcry_cipher_get_algo_keylen(GCRY_CIPHER);
 
 	const char *salt = "NaCl";
-	size_t saltlen = sizeof(salt);
+	size_t saltLen = sizeof(salt);
 	unsigned long iterations = 4096;
 	gpg_error_t errStatus; 
-		
-	errStatus = gcry_kdf_derive(pass, strlen(pass), GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, strlen(salt), iterations, keyLength, key);
+	
+	printf("gcry_kdf_derive(%s, %u, %d, %s, %u, %d, %d, key)\n", pass, strlen(pass), GCRY_KDF_PBKDF2, salt, strlen(salt), iterations, keyLength);
+	
+	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, saltLen, iterations, keyLength, key);
 	
 	if(errStatus != 0) {
 		printf("Error generating key from password!\n");
 		printf("Error no: %d and message: %s\n ", errStatus, gcry_strerror(errStatus)); 
 	}
-	
+		
 	/*
 		Cipher Setup
 	*/
 	printf("Key: %s\n", key);
-	
-	const int IV[16] = {5844};
+
+	const int IV[16] = {5844}; // const int IV = 5844;
 	const char *name = "aes128";
 	int algorithm = gcry_cipher_map_name(name);
 	size_t blockLength = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
@@ -75,44 +91,75 @@ int main (int argc, char const *argv[])
 
 	gcry_cipher_open(&hand, algorithm, GCRY_CIPHER_MODE_CBC, 0);
 	gcry_cipher_setkey(hand, key, keyLength);
-//	gcry_cipher_setiv(hand, IV, blockLength);
-
-	/* 
-		Open the file for reading and then copy to a buffer
-	*/	
-	FILE *ifp;
-	long len;
-	char *buffer;
-
-	ifp = fopen("test.gt", "r");
-			
-	fseek(ifp, 0L, SEEK_END);
-	len = ftell(ifp);
-	rewind(ifp);
-
-	buffer = gcry_calloc_secure(1, len+1);
-
-	fread(buffer, len+1, 1, ifp);
-
-	fclose(ifp);
-
+	gcry_cipher_setiv(hand, IV, blockLength);
+	
 	/*
-		Encrypt the buffer
+		If the local flag is set then we encrypt the file locally
+		instead of sending it over the network
+		Otherwise we send the file over the network
 	*/
-	gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
-	puts(buffer);
-	/*
-		Write the buffer to a file
-	*/
-	FILE *ofp;
-	ofp = fopen("test", "w");
+	if (local == 1) {
+	
+		/* 
+			Open the file for reading and then copy to a buffer
+		*/	
+		FILE *ifp = fopen(argv[1], "r");
+		if(ifp == 0) {
+			printf("%s", "Could not open file");
+			return 1;
+		}
+	
+		long len;
+	
+//		ifp = fopen("techrypt.c.gt", "r");
+		fread(stdout, sizeof(ifp), 1, ifp);
+		fseek(ifp, 0L, SEEK_END);
+		len = ftell(ifp);
+		rewind(ifp);
+	
+		char *buffer = gcry_calloc_secure(1, len);
+	
+		fread(buffer, len, 1, ifp);
+		
+		fclose(ifp);
+	
+		/*
+			Encrypt the buffer
+		*/
+		gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
 
-	fprintf(ofp, buffer);
+		/*
+			Write the buffer to a file
+		*/
+		FILE *ofp;
+		
+		char *name = argv[1];
+		size_t inLen = strlen(name);
+		name[inLen-3] = '\0';
+		
+		ofp = fopen(name, "w");		
+	
+		fprintf(ofp, buffer);
+	
+		fclose(ofp);
+		
+	} else {
+		/*
+			Retrieve file from remote computer
+		*/
+		int port = 60888;
+		int sock;
+	
+		sock = socket(AF_INET, SOCK_STREAM, 0);
 
-	fclose(ofp);
-
-	/*
-		Send the buffer to remote computer
-	*/	
+		if (sock == -1) {
+			fprintf(stderr, "unable to create socket: %s\n", strerror(errno));
+			exit(1);
+		}
+	
+//		ssize_t sent = sendfile(sock, ofp, NULL, len+1);
+		
+	}	
+	
 	return 0;
 }
