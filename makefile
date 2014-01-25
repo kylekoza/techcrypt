@@ -1,13 +1,19 @@
 CC=gcc
 CFLAGS=`libgcrypt-config --cflags --libs`
 
-all: techrypt techdec
+all: techrypt techdec encrypt
 
-techrypt: techrypt.c
-	$(CC) $(CFLAGS) techrypt.c -o techrypt
+techrypt: techrypt.c optparse.c
+	$(CC) $(CFLAGS) techrypt.c optparse.c -ggdb -o techrypt
 
 techdec: techdec.c
-	$(CC) $(CFLAGS) techdec.c -o techdec
+	$(CC) $(CFLAGS) techdec.c -ggdb -o techdec
+	
+encrypt: encrypt.c
+	$(CC) $(CFLAGS) encrypt.c -ggdb -o encrypt
+
+optparse: optparse.c
+	$(CC) optparse.c -ggdb -o optparse
 	
 clean:
-	rm techrypt techdec test.gt test
+	rm techrypt techdec test.gt test encrypt
