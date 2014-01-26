@@ -70,13 +70,14 @@ int main (int argc, char **argv) {
 	unsigned long iterations = 4096;
 	gpg_error_t errStatus; 
 		
-	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, 1, iterations, keyLength, key);
+	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, saltLen, iterations, keyLength, key);
 			
 	/*
 		Cipher Setup
 	*/
-	printf("Key: %X\n", key);
-
+//	printf("Key: %X\n", key);
+	puts(key);
+	
 	const char* IV = "5844"; // const int IV = 5844;
 	const char *name = "aes128";
 	int algorithm = gcry_cipher_map_name(name);
@@ -105,9 +106,7 @@ int main (int argc, char **argv) {
 			printf("%s", "Could not open file");
 			return 1;
 		}
-	
-		long len;
-	
+		
 //		ifp = fopen("techrypt.c.gt", "r");
 //		fread(stdout, sizeof(ifp), 1, ifp);
 		fseek(ifp, 0L, SEEK_END);
@@ -144,37 +143,25 @@ int main (int argc, char **argv) {
 		
 		bind(sock, (struct sockaddr *) &inPort, sizeof(inPort));
 		listen(sock, 0);
+		
+		printf("%s", "Waiting for connection...\n");
+		
 		localSock = accept(sock, NULL, NULL);
+		printf("%s", "Inbound file...\n");
 		
-		FILE *contents;
-		contents = fdopen(localSock, "r");
-		
-//		char c;
-//		int i;
-	
-//        while ((c = fgetc(contents)) != EOF) {
-//            putchar(c);
+		FILE *contents = fdopen(localSock, "rb");
 
-// 		}
-		
-	
-//		ifp = fopen("techrypt.c.gt", "r");
-//		fread(stdout, sizeof(contents), 1, ifp);
-		fseek(contents, 0, SEEK_END);
-		len = ftell(contents);
-		rewind(contents);
 		
 		buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
 
 		fread(buffer, 1, len, contents);
-		
+
 		fileName = argv[1];
 	
 		fclose(contents);
 		
 		close(sock);
-		
-		
+				
 	}	
 	
 
@@ -188,8 +175,7 @@ int main (int argc, char **argv) {
 	*/
 	FILE *ofp;
 		
-	ofp = fopen(fileName, "w");		
-
+	ofp = fopen(fileName, "wb");		
 	fprintf(ofp, buffer);
 
 	fclose(ofp);

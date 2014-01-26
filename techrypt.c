@@ -58,7 +58,7 @@ int main (int argc, char **argv) {
 	}
 
 	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
-	gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
+	gcry_control(GCRYCTL_INIT_SECMEM, 65536, 0);
 	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
 	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
 
@@ -73,12 +73,13 @@ int main (int argc, char **argv) {
 	unsigned long iterations = 4096;
 	gpg_error_t errStatus; 
 		
-	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, 1, iterations, keyLength, key);
+	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, saltLen, iterations, keyLength, key);
 			
 	/*
 		Cipher Setup
 	*/
-	printf("Key: %X\n", key);
+//	printf("Key: %X\n", key);
+	puts(key);
 
 	const char* IV = "5844"; // const int IV = 5844;
 	const char *name = "aes128";
@@ -86,15 +87,22 @@ int main (int argc, char **argv) {
 	size_t blockLength = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
 	gcry_cipher_hd_t hand;
     gcry_error_t errorVal;
+	gcry_md_hd_t macHand;
+//	gcry_ctx_t context;
+	
+	size_t macLen = gcry_md_get_algo_dlen(GCRY_MD_SHA512);
+	char *mac = gcry_calloc_secure(macLen, sizeof(char));
 
     errorVal = gcry_cipher_open(&hand, algorithm, GCRY_CIPHER_MODE_CBC, 0);
-    printf("ErrorVal = %u \n", errorVal);
+//    printf("ErrorVal = %u \n", errorVal);
     errorVal = gcry_cipher_setkey(hand, key, keyLength);
-    printf("ErrorVal = %u \n", errorVal);
+//    printf("ErrorVal = %u \n", errorVal);
     errorVal = gcry_cipher_setiv(hand, IV, blockLength);
-    printf("ErrorVal = %u \n", errorVal);	
+//    printf("ErrorVal = %u \n", errorVal);	
+	errorVal = gcry_md_open(&macHand, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
+	errorVal = gcry_md_setkey(macHand, key, keyLength);
 	
-	/* 
+	/*
 		Open the file for reading and then copy to a buffer
 	*/	
 	FILE *ifp = fopen(argv[1], "r");
@@ -128,6 +136,13 @@ int main (int argc, char **argv) {
 //    printf("Failure: %s/ %s \n", gcry_strerror(errorVal), gcry_strsource(errorVal));
     //gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
 //    puts(buffer);
+	
+	/*
+		Calculate the HMAC
+	*/
+	gcry_md_write(macHand, buffer, len+(16-(len%16)));
+	mac = gcry_md_read(macHand, 0);
+	puts(mac);
 	
 	/*
 		If the local flag is set then we encrypt the file locally
