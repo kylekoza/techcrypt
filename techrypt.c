@@ -72,16 +72,9 @@ int main (int argc, char **argv) {
 	size_t saltLen = sizeof(salt);
 	unsigned long iterations = 4096;
 	gpg_error_t errStatus; 
-	
-//	printf("gcry_kdf_derive(%s, %u, %d, %s, %u, %d, %d, key)\n", pass, strlen(pass), GCRY_KDF_PBKDF2, salt, strlen(salt), iterations, keyLength);
-	
-	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, saltLen, iterations, keyLength, key);
-	
-	if(errStatus != 0) {
-		printf("Error generating key from password!\n");
-		printf("Error no: %d and message: %s\n ", errStatus, gcry_strerror(errStatus)); 
-	}
 		
+	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, 1, iterations, keyLength, key);
+			
 	/*
 		Cipher Setup
 	*/
@@ -134,7 +127,7 @@ int main (int argc, char **argv) {
 //    printf("ErrorVal = %u \n", errorVal);
 //    printf("Failure: %s/ %s \n", gcry_strerror(errorVal), gcry_strsource(errorVal));
     //gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
-    puts(buffer);
+//    puts(buffer);
 	
 	/*
 		If the local flag is set then we encrypt the file locally
@@ -156,17 +149,6 @@ int main (int argc, char **argv) {
 		/*
 			Send the buffer to remote computer
 		*/
-		int port = 60888;
-		int sock;
-	
-		sock = socket(AF_INET, SOCK_STREAM, 0);
-
-		if (sock == -1) {
-			fprintf(stderr, "unable to create socket: %s\n", strerror(errno));
-			exit(1);
-		}
-	
-	//	ssize_t sent = sendfile(sock, ofp, NULL, len+1);
 		
 	}	
 	

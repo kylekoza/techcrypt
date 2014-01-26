@@ -38,6 +38,7 @@ int main (int argc, char **argv) {
 	size_t passLen = 0;
 	ssize_t passRead;
 	
+	char *fileName;
 		
 	printf("Password: ");
 
@@ -68,22 +69,15 @@ int main (int argc, char **argv) {
 	size_t saltLen = sizeof(salt);
 	unsigned long iterations = 4096;
 	gpg_error_t errStatus; 
-	
-	printf("gcry_kdf_derive(%s, %u, %d, %s, %u, %d, %d, key)\n", pass, strlen(pass), GCRY_KDF_PBKDF2, salt, strlen(salt), iterations, keyLength);
-	
-	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, saltLen, iterations, keyLength, key);
-	
-	if(errStatus != 0) {
-		printf("Error generating key from password!\n");
-		printf("Error no: %d and message: %s\n ", errStatus, gcry_strerror(errStatus)); 
-	}
 		
+	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, 1, iterations, keyLength, key);
+			
 	/*
 		Cipher Setup
 	*/
 	printf("Key: %X\n", key);
 
-	const int IV[16] = {5844}; // const int IV = 5844;
+	const char* IV = "5844"; // const int IV = 5844;
 	const char *name = "aes128";
 	int algorithm = gcry_cipher_map_name(name);
 	size_t blockLength = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
@@ -94,6 +88,7 @@ int main (int argc, char **argv) {
 	gcry_cipher_setiv(hand, IV, blockLength);
 	
 	char *buffer;
+	long len;
 	
 	/*
 		If the local flag is set then we encrypt the file locally
@@ -119,9 +114,13 @@ int main (int argc, char **argv) {
 		len = ftell(ifp);
 		rewind(ifp);
 		
-		buffer = gcry_calloc_secure(1, len);
+		buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
 
-		fread(buffer, len, 1, ifp);
+		fread(buffer, 1, len, ifp);
+		
+		fileName = argv[1];
+		size_t inLen = strlen(fileName);
+		fileName[inLen-3] = '\0';
 	
 		fclose(ifp);
 		
@@ -158,17 +157,18 @@ int main (int argc, char **argv) {
 
 // 		}
 		
-		long len;
 	
 //		ifp = fopen("techrypt.c.gt", "r");
 //		fread(stdout, sizeof(contents), 1, ifp);
-		fseek(contents, 0L, SEEK_END);
+		fseek(contents, 0, SEEK_END);
 		len = ftell(contents);
 		rewind(contents);
 		
-		buffer = gcry_calloc_secure(1, len);
+		buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
 
-		fread(buffer, len, 1, contents);
+		fread(buffer, 1, len, contents);
+		
+		fileName = argv[1];
 	
 		fclose(contents);
 		
@@ -179,20 +179,16 @@ int main (int argc, char **argv) {
 	
 
 	/*
-		Encrypt the buffer
+		Decrypt the buffer
 	*/
-	gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
+	gcry_cipher_decrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
 
 	/*
 		Write the buffer to a file
 	*/
 	FILE *ofp;
-	
-	char *name = argv[1];
-	size_t inLen = strlen(name);
-	name[inLen-3] = '\0';
-	
-	ofp = fopen(name, "w");		
+		
+	ofp = fopen(fileName, "w");		
 
 	fprintf(ofp, buffer);
 
