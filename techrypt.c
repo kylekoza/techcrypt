@@ -85,7 +85,7 @@ int main (int argc, char **argv) {
 	/*
 		Cipher Setup
 	*/
-	printf("Key: %s\n", key);
+	printf("Key: %X\n", key);
 
 	const int IV[16] = {5844}; // const int IV = 5844;
 	const char *name = "aes128";

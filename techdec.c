@@ -81,7 +81,7 @@ int main (int argc, char **argv) {
 	/*
 		Cipher Setup
 	*/
-	printf("Key: %s\n", key);
+	printf("Key: %X\n", key);
 
 	const int IV[16] = {5844}; // const int IV = 5844;
 	const char *name = "aes128";
@@ -92,6 +92,8 @@ int main (int argc, char **argv) {
 	gcry_cipher_open(&hand, algorithm, GCRY_CIPHER_MODE_CBC, 0);
 	gcry_cipher_setkey(hand, key, keyLength);
 	gcry_cipher_setiv(hand, IV, blockLength);
+	
+	char *buffer;
 	
 	/*
 		If the local flag is set then we encrypt the file locally
@@ -112,54 +114,89 @@ int main (int argc, char **argv) {
 		long len;
 	
 //		ifp = fopen("techrypt.c.gt", "r");
-		fread(stdout, sizeof(ifp), 1, ifp);
+//		fread(stdout, sizeof(ifp), 1, ifp);
 		fseek(ifp, 0L, SEEK_END);
 		len = ftell(ifp);
 		rewind(ifp);
-	
-		char *buffer = gcry_calloc_secure(1, len);
-	
-		fread(buffer, len, 1, ifp);
 		
-		fclose(ifp);
-	
-		/*
-			Encrypt the buffer
-		*/
-		gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
+		buffer = gcry_calloc_secure(1, len);
 
-		/*
-			Write the buffer to a file
-		*/
-		FILE *ofp;
-		
-		char *name = argv[1];
-		size_t inLen = strlen(name);
-		name[inLen-3] = '\0';
-		
-		ofp = fopen(name, "w");		
+		fread(buffer, len, 1, ifp);
 	
-		fprintf(ofp, buffer);
-	
-		fclose(ofp);
+		fclose(ifp);
 		
 	} else {
 		/*
 			Retrieve file from remote computer
 		*/
-		int port = 60888;
 		int sock;
+		int localSock;
+		struct sockaddr_in inPort;
+		inPort.sin_family = AF_INET;
+		inPort.sin_addr.s_addr = INADDR_ANY;
+		inPort.sin_port = htons(port);
 	
 		sock = socket(AF_INET, SOCK_STREAM, 0);
 
 		if (sock == -1) {
-			fprintf(stderr, "unable to create socket: %s\n", strerror(errno));
+			printf("%s", "Could not open socket");
 			exit(1);
 		}
+		
+		bind(sock, (struct sockaddr *) &inPort, sizeof(inPort));
+		listen(sock, 0);
+		localSock = accept(sock, NULL, NULL);
+		
+		FILE *contents;
+		contents = fdopen(localSock, "r");
+		
+//		char c;
+//		int i;
 	
-//		ssize_t sent = sendfile(sock, ofp, NULL, len+1);
+//        while ((c = fgetc(contents)) != EOF) {
+//            putchar(c);
+
+// 		}
+		
+		long len;
+	
+//		ifp = fopen("techrypt.c.gt", "r");
+//		fread(stdout, sizeof(contents), 1, ifp);
+		fseek(contents, 0L, SEEK_END);
+		len = ftell(contents);
+		rewind(contents);
+		
+		buffer = gcry_calloc_secure(1, len);
+
+		fread(buffer, len, 1, contents);
+	
+		fclose(contents);
+		
+		close(sock);
+		
 		
 	}	
+	
+
+	/*
+		Encrypt the buffer
+	*/
+	gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
+
+	/*
+		Write the buffer to a file
+	*/
+	FILE *ofp;
+	
+	char *name = argv[1];
+	size_t inLen = strlen(name);
+	name[inLen-3] = '\0';
+	
+	ofp = fopen(name, "w");		
+
+	fprintf(ofp, buffer);
+
+	fclose(ofp);
 	
 	return 0;
 }

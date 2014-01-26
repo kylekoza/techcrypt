@@ -14,6 +14,9 @@ encrypt: encrypt.c
 
 optparse: optparse.c
 	$(CC) optparse.c -ggdb -o optparse
+
+adam: techrypt-adam.c
+	$(CC) $(CFLAGS) techrypt-adam.c -ggdb -o adam
 	
 clean:
 	rm techrypt techdec test.gt test encrypt techcrypt.c.gt
