@@ -1,7 +1,7 @@
 #include <gcrypt.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/sendfile.h>
+//#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -55,7 +55,7 @@ int main (int argc, char **argv) {
 	}
 
 	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
-	gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
+	gcry_control(GCRYCTL_INIT_SECMEM, 65536, 0);
 	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
 	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
 
@@ -101,7 +101,7 @@ int main (int argc, char **argv) {
 		/* 
 			Open the file for reading and then copy to a buffer
 		*/	
-		FILE *ifp = fopen(argv[1], "r");
+		FILE *ifp = fopen(argv[1], "rb");
 		if(ifp == 0) {
 			printf("%s", "Could not open file");
 			return 1;
@@ -150,9 +150,11 @@ int main (int argc, char **argv) {
 		printf("%s", "Inbound file...\n");
 		
 		FILE *contents = fdopen(localSock, "rb");
-
+		fseek(contents, 0L, SEEK_END);
+		len = ftell(contents);
+		fseek(contents, 0L, SEEK_SET);
 		
-		buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
+		char *buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
 
 		fread(buffer, 1, len, contents);
 
@@ -161,7 +163,7 @@ int main (int argc, char **argv) {
 		fclose(contents);
 		
 		close(sock);
-				
+						
 	}	
 	
 
@@ -173,12 +175,10 @@ int main (int argc, char **argv) {
 	/*
 		Write the buffer to a file
 	*/
-	FILE *ofp;
-		
-	ofp = fopen(fileName, "wb");		
-	fprintf(ofp, buffer);
-
-	fclose(ofp);
+	FILE *ofp = fopen(fileName, "wb");
+	fwrite(buffer, 1, len, ofp);
 	
+	fclose(ofp);
+		
 	return 0;
 }

@@ -1,7 +1,7 @@
 #include <gcrypt.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/sendfile.h>
+//#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -87,11 +87,6 @@ int main (int argc, char **argv) {
 	size_t blockLength = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
 	gcry_cipher_hd_t hand;
     gcry_error_t errorVal;
-	gcry_md_hd_t macHand;
-//	gcry_ctx_t context;
-	
-	size_t macLen = gcry_md_get_algo_dlen(GCRY_MD_SHA512);
-	char *mac = gcry_calloc_secure(macLen, sizeof(char));
 
     errorVal = gcry_cipher_open(&hand, algorithm, GCRY_CIPHER_MODE_CBC, 0);
 //    printf("ErrorVal = %u \n", errorVal);
@@ -99,13 +94,11 @@ int main (int argc, char **argv) {
 //    printf("ErrorVal = %u \n", errorVal);
     errorVal = gcry_cipher_setiv(hand, IV, blockLength);
 //    printf("ErrorVal = %u \n", errorVal);	
-	errorVal = gcry_md_open(&macHand, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
-	errorVal = gcry_md_setkey(macHand, key, keyLength);
 	
 	/*
 		Open the file for reading and then copy to a buffer
 	*/	
-	FILE *ifp = fopen(argv[1], "r");
+	FILE *ifp = fopen(argv[1], "rb");
 	if(ifp == 0) {
 		printf("%s", "Could not open file");
 		return 1;
@@ -134,15 +127,8 @@ int main (int argc, char **argv) {
 //    errorVal = gcry_cipher_decrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
 //    printf("ErrorVal = %u \n", errorVal);
 //    printf("Failure: %s/ %s \n", gcry_strerror(errorVal), gcry_strsource(errorVal));
-    //gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
-//    puts(buffer);
+//    gcry_cipher_decrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
 	
-	/*
-		Calculate the HMAC
-	*/
-	gcry_md_write(macHand, buffer, len+(16-(len%16)));
-	mac = gcry_md_read(macHand, 0);
-	puts(mac);
 	
 	/*
 		If the local flag is set then we encrypt the file locally
@@ -153,17 +139,35 @@ int main (int argc, char **argv) {
 		/*
 			Write the buffer to a file
 		*/
-		FILE *ofp;
-		ofp = fopen(strcat(argv[1], ".gt"), "w");
-	
-		fprintf(ofp, buffer);
+		FILE *ofp = fopen(strcat(argv[1], ".gt"), "wb");
+//		puts(buffer);
+//		fprintf(ofp, buffer);
+		fwrite(buffer, 1, len, ofp);
 	
 		fclose(ofp);
 		
 	} else {
 		/*
+			Calculate the HMAC
+		*/
+		gcry_md_hd_t macHand;
+	
+		size_t macLen = gcry_md_get_algo_dlen(GCRY_MD_SHA512);
+		char *mac = gcry_calloc_secure(macLen, sizeof(char));
+		
+		errorVal = gcry_md_open(&macHand, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
+		errorVal = gcry_md_setkey(macHand, key, keyLength);
+		
+		gcry_md_write(macHand, buffer, len+(16-(len%16)));
+		mac = gcry_md_read(macHand, 0);
+		puts(mac);
+		
+		/*
 			Send the buffer to remote computer
 		*/
+		
+		
+		
 		
 	}	
 	
