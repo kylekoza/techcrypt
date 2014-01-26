@@ -73,7 +73,7 @@ int main (int argc, char **argv) {
 	unsigned long iterations = 4096;
 	gpg_error_t errStatus; 
 	
-	printf("gcry_kdf_derive(%s, %u, %d, %s, %u, %d, %d, key)\n", pass, strlen(pass), GCRY_KDF_PBKDF2, salt, strlen(salt), iterations, keyLength);
+//	printf("gcry_kdf_derive(%s, %u, %d, %s, %u, %d, %d, key)\n", pass, strlen(pass), GCRY_KDF_PBKDF2, salt, strlen(salt), iterations, keyLength);
 	
 	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, saltLen, iterations, keyLength, key);
 	
@@ -87,15 +87,19 @@ int main (int argc, char **argv) {
 	*/
 	printf("Key: %X\n", key);
 
-	const int IV[16] = {5844}; // const int IV = 5844;
+	const char* IV = "5844"; // const int IV = 5844;
 	const char *name = "aes128";
 	int algorithm = gcry_cipher_map_name(name);
 	size_t blockLength = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
 	gcry_cipher_hd_t hand;
+    gcry_error_t errorVal;
 
-	gcry_cipher_open(&hand, algorithm, GCRY_CIPHER_MODE_CBC, 0);
-	gcry_cipher_setkey(hand, key, keyLength);
-	gcry_cipher_setiv(hand, IV, blockLength);
+    errorVal = gcry_cipher_open(&hand, algorithm, GCRY_CIPHER_MODE_CBC, 0);
+    printf("ErrorVal = %u \n", errorVal);
+    errorVal = gcry_cipher_setkey(hand, key, keyLength);
+    printf("ErrorVal = %u \n", errorVal);
+    errorVal = gcry_cipher_setiv(hand, IV, blockLength);
+    printf("ErrorVal = %u \n", errorVal);	
 	
 	/* 
 		Open the file for reading and then copy to a buffer
@@ -110,22 +114,28 @@ int main (int argc, char **argv) {
 	
 //	ifp = fopen("techrypt.c", "r");
 	fread(stdout, sizeof(ifp), 1, ifp);
-	fseek(ifp, 0L, SEEK_END);
+	fseek(ifp, 0, SEEK_END);
 	len = ftell(ifp);
 	rewind(ifp);
 	
-	char *buffer = gcry_calloc_secure(1, len);
-	
-	fread(buffer, len, 1, ifp);
+    char *buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
+
+    fread(buffer, 1, len, ifp);
+
+    fclose(ifp);
 		
-	fclose(ifp);
-	
 	/*
 		Encrypt the buffer
 	*/
-	gcry_cipher_encrypt(hand, buffer, len, NULL, 0);
-	gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
-
+    errorVal = gcry_cipher_encrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
+//    printf("ErrorVal = %u \n", errorVal);
+//    printf("Failure: %s/ %s \n", gcry_strerror(errorVal), gcry_strsource(errorVal));
+//    errorVal = gcry_cipher_decrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
+//    printf("ErrorVal = %u \n", errorVal);
+//    printf("Failure: %s/ %s \n", gcry_strerror(errorVal), gcry_strsource(errorVal));
+    //gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
+    puts(buffer);
+	
 	/*
 		If the local flag is set then we encrypt the file locally
 		instead of sending it over the network
