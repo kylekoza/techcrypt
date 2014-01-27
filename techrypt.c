@@ -1,7 +1,6 @@
 #include <gcrypt.h>
 #include <stdio.h>
 #include <stdlib.h>
-//#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -142,7 +141,7 @@ int main (int argc, char **argv) {
 		FILE *ofp = fopen(strcat(argv[1], ".gt"), "wb");
 //		puts(buffer);
 //		fprintf(ofp, buffer);
-		fwrite(buffer, 1, len, ofp);
+		fwrite(buffer, 1, len+(16-(len%16)), ofp);
 	
 		fclose(ofp);
 		
@@ -160,14 +159,40 @@ int main (int argc, char **argv) {
 		
 		gcry_md_write(macHand, buffer, len+(16-(len%16)));
 		mac = gcry_md_read(macHand, 0);
-		puts(mac);
+//		puts(mac);
 		
 		/*
 			Send the buffer to remote computer
 		*/
-		
-		
-		
+		char *sendBuffer = gcry_calloc_secure(len+(16-(len%16)+macLen), sizeof(char));
+
+        strcpy(sendBuffer, buffer);
+        strcat(sendBuffer, mac);
+
+        int sock;
+        sock = socket(AF_INET, SOCK_STREAM, 0);
+
+        if (sock == -1) {
+                printf("%s", "Could not open socket");
+                exit(1);
+        }
+
+        struct sockaddr_in localAddr;
+        struct sockaddr_in servAddr;
+        localAddr.sin_family = AF_INET;
+        localAddr.sin_addr.s_addr = INADDR_ANY;
+        localAddr.sin_port = htons(0);
+
+        bind(sock, (struct sockaddr *)&localAddr, sizeof(localAddr));
+
+        servAddr.sin_family = AF_INET;
+        servAddr.sin_port = htons(8888);
+        servAddr.sin_addr.s_addr = inet_addr("192.168.142.135");
+
+        connect(sock, (struct sockaddr *)&servAddr, sizeof(servAddr));
+
+        write(sock, sendBuffer, len+(16-(len%16)+macLen));
+
 		
 	}	
 	
