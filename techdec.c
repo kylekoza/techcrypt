@@ -1,7 +1,6 @@
 #include <gcrypt.h>
 #include <stdio.h>
 #include <stdlib.h>
-//#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -107,13 +106,11 @@ int main (int argc, char **argv) {
 			return 1;
 		}
 		
-//		ifp = fopen("techrypt.c.gt", "r");
-//		fread(stdout, sizeof(ifp), 1, ifp);
 		fseek(ifp, 0L, SEEK_END);
 		len = ftell(ifp);
 		rewind(ifp);
 		
-		buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
+		buffer = gcry_calloc_secure(len, sizeof(char));
 
 		fread(buffer, 1, len, ifp);
 		
@@ -130,6 +127,7 @@ int main (int argc, char **argv) {
 		int sock;
 		int localSock;
 		struct sockaddr_in inPort;
+		
 		inPort.sin_family = AF_INET;
 		inPort.sin_addr.s_addr = INADDR_ANY;
 		inPort.sin_port = htons(port);
@@ -148,30 +146,69 @@ int main (int argc, char **argv) {
 		
 		localSock = accept(sock, NULL, NULL);
 		printf("%s", "Inbound file...\n");
-		
-		FILE *contents = fdopen(localSock, "rb");
-		fseek(contents, 0L, SEEK_END);
-		len = ftell(contents);
-		fseek(contents, 0L, SEEK_SET);
-		
-		char *buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
 
-		fread(buffer, 1, len, contents);
+        len = 4096L;
+		buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
+        long dataRead = 0L;
+        int keepReading = 1;
+        while (keepReading) {
+            dataRead = recv(localSock, buffer, len, MSG_PEEK);
+            if (dataRead == len) {
+                len = len * 2;
+                buffer = gcry_realloc(buffer, len);
+                keepReading = 1;
+            } else {
+                keepReading = 0;
+            }
+        }
+        len = dataRead;
+
+        dataRead = recv(localSock, buffer, len, 0);
 
 		fileName = argv[1];
-	
-		fclose(contents);
-		
+			
 		close(sock);
-						
+		
+		/*
+			Setup the HMAC
+		*/
+		gcry_md_hd_t macHand;
+	
+		size_t macLen = gcry_md_get_algo_dlen(GCRY_MD_SHA512);
+		char *mac = gcry_calloc_secure(macLen, sizeof(char));
+		
+		gcry_md_open(&macHand, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
+		gcry_md_setkey(macHand, key, keyLength);
+		
+		gcry_md_write(macHand, buffer, len-macLen);
+		mac = gcry_md_read(macHand, 0);
+		
+		/*
+			Strip HMAC from buffer
+		*/
+//		char *exMac = gcry_calloc_secure(macLen, sizeof(char));
+		char *exMac = buffer+(len-macLen); // TODO: figure out how to point mac at the last part of buffer that contains the HMAC
+		
+		/*
+			Check HMAC against our HMAC
+		*/
+		if(strncmp(mac, exMac, macLen) != 0) {
+			exit(62);
+		}
+								
 	}	
 	
 
 	/*
 		Decrypt the buffer
 	*/
-	gcry_cipher_decrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
-
+	gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
+	
+	
+	// Getting rid of extraneous NULLs we had to add on to make the message divisble by the block length
+	char *ptr = strchr(buffer, '\0');
+	len = ptr-buffer;
+	
 	/*
 		Write the buffer to a file
 	*/

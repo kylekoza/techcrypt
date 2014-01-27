@@ -174,8 +174,8 @@ int main (int argc, char **argv) {
 		*/
 		char *sendBuffer = gcry_calloc_secure(len+(16-(len%16)+macLen), sizeof(char));
 
-        strcpy(sendBuffer, buffer);
-        strcat(sendBuffer, mac);
+        memcpy(sendBuffer, buffer, len+(16-(len%16)));
+        memcpy(sendBuffer+len+(16-(len%16)), mac, macLen);
 
         int sock;
         sock = socket(AF_INET, SOCK_STREAM, 0);
