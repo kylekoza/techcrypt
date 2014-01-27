@@ -29,11 +29,7 @@ int main (int argc, char **argv) {
 	if(opt_parse("usage: %s < input file > [options]", options, argv) == 0) {
 		opt_help(0, NULL);
 	}
-	
-	if (ip.s) {
-		ip.s[0] = ip.s0;
-	}
-	
+		
 	/*
 		Read in password
 	*/
@@ -147,6 +143,18 @@ int main (int argc, char **argv) {
 		
 	} else {
 		/*
+			Parse the IP options
+		*/
+		if (ip.s) {
+			ip.s[0] = ip.s0;
+		}
+	
+		char *ipAddr = strtok(ip.s, ":");
+		
+		char *port = strtok(NULL, ":");
+		int portNo = atoi(port);
+		
+		/*
 			Calculate the HMAC
 		*/
 		gcry_md_hd_t macHand;
@@ -186,8 +194,8 @@ int main (int argc, char **argv) {
         bind(sock, (struct sockaddr *)&localAddr, sizeof(localAddr));
 
         servAddr.sin_family = AF_INET;
-        servAddr.sin_port = htons(8888);
-        servAddr.sin_addr.s_addr = inet_addr("192.168.142.135");
+        servAddr.sin_port = htons(portNo); //8888
+        servAddr.sin_addr.s_addr = inet_addr(ipAddr); //"192.168.142.135"
 
         connect(sock, (struct sockaddr *)&servAddr, sizeof(servAddr));
 
