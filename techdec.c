@@ -233,7 +233,12 @@ int main (int argc, char **argv) {
 	gcry_cipher_decrypt(hand, buffer, len, NULL, 0);
 	
 	
-	// Getting rid of extraneous NULLs we had to add on to make the message divisble by the block length
+	/*
+		Reverse padding algorithm
+		Strip the amount of bytes from the end of the file
+		determined by the contents of the last byte
+		This is why using PKCS7 was so useful
+	*/
 	char *padPtr = buffer+len-macLen-1;
 	int writeLen = len-macLen-(*padPtr);
 	

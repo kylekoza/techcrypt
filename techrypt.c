@@ -53,8 +53,10 @@ int main (int argc, char **argv) {
 		exit (2);
 	}
 
+	// May need to run as root to allocate this much RAM
+	// so need to be root to send a large file
 	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
-	gcry_control(GCRYCTL_INIT_SECMEM, 131072, 0);
+	gcry_control(GCRYCTL_INIT_SECMEM, 131072, 0);  
 	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
 	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
 
@@ -120,6 +122,11 @@ int main (int argc, char **argv) {
 	
 	/*
 		Padding Algorithm
+		I decided to use the PKCS7
+		So these two lines determine the beginning of the padding
+		and then fill that space with the char representation
+		of how many extra bytes.
+		This is useful later when we want to strip the extra badding
 	*/
 	char *padBegin = buffer+len;
 	memset(padBegin, padding, padding);
