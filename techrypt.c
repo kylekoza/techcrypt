@@ -9,9 +9,10 @@
 
 #define GCRY_CIPHER GCRY_CIPHER_AES128
 
-int local = 0;
-struct opt_str ip = {NULL, 0};
+int local = 0; // Feax-Boolean for whether we are being run in local mode
+struct opt_str ip = {NULL, 0}; // Structure to store the ip and port
 
+// Structure for command line options
 struct opt_spec options[] = {
 	{opt_text, OPT_NO_SF, "FILE", OPT_NO_METAVAR, "input file to encrypt", OPT_NO_DATA},
     {opt_help, "h", "--help", OPT_NO_METAVAR, OPT_NO_HELP, OPT_NO_DATA},
@@ -101,14 +102,22 @@ int main (int argc, char **argv) {
 	
 	long len;
 	
-//	ifp = fopen("techrypt.c", "r");
-	fread(stdout, sizeof(ifp), 1, ifp);
+//	fread(stdout, sizeof(ifp), 1, ifp);
+	
+	// Lets figure out how big the file is
 	fseek(ifp, 0, SEEK_END);
 	len = ftell(ifp);
 	rewind(ifp);
 	
+	// This is the buffer where we'll store the plaintext
+	// and convert to ciphertext
+	// We're allocating len+(16-(len%16)) bytes because
+	// the block cipher needs to be divisible by the blocklength
+	// which is 16 bytes. The use of calloc makes sure the extra
+	// memory will consist of NULLs so that we can strip them off later
     char *buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
 
+	// Copy the input file to the buffer
     fread(buffer, 1, len, ifp);
 
     fclose(ifp);
@@ -116,14 +125,7 @@ int main (int argc, char **argv) {
 	/*
 		Encrypt the buffer
 	*/
-    errorVal = gcry_cipher_encrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
-//    printf("ErrorVal = %u \n", errorVal);
-//    printf("Failure: %s/ %s \n", gcry_strerror(errorVal), gcry_strsource(errorVal));
-//    errorVal = gcry_cipher_decrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
-//    printf("ErrorVal = %u \n", errorVal);
-//    printf("Failure: %s/ %s \n", gcry_strerror(errorVal), gcry_strsource(errorVal));
-//    gcry_cipher_decrypt(hand, buffer, len+(16-(len%16)), NULL, 0);
-	
+    errorVal = gcry_cipher_encrypt(hand, buffer, len+(16-(len%16)), NULL, 0);	
 	
 	/*
 		If the local flag is set then we encrypt the file locally
@@ -135,8 +137,7 @@ int main (int argc, char **argv) {
 			Write the buffer to a file
 		*/
 		FILE *ofp = fopen(strcat(argv[1], ".gt"), "wb");
-//		puts(buffer);
-//		fprintf(ofp, buffer);
+
 		fwrite(buffer, 1, len+(16-(len%16)), ofp);
 	
 		fclose(ofp);
@@ -148,10 +149,13 @@ int main (int argc, char **argv) {
 		if (ip.s) {
 			ip.s[0] = ip.s0;
 		}
-	
+		
+		// Getting the IP address from the argument
 		char *ipAddr = strtok(ip.s, ":");
 		
+		// Getting the port from the argument
 		char *port = strtok(NULL, ":");
+		// Convert the port char* to an int
 		int portNo = atoi(port);
 		
 		/*
@@ -167,13 +171,20 @@ int main (int argc, char **argv) {
 		
 		gcry_md_write(macHand, buffer, len+(16-(len%16)));
 		mac = gcry_md_read(macHand, 0);
-//		puts(mac);
 		
 		/*
 			Send the buffer to remote computer
 		*/
+		// Allocating a buffer big enought to hold 
+		// the ciphertext with the MAC added on at the end
 		char *sendBuffer = gcry_calloc_secure(len+(16-(len%16)+macLen), sizeof(char));
-
+		
+		// Figured this out the hard way...
+		// Sometimes ciphertext includes NULLs, which 
+		// was causing strcpy to fail here...
+		//
+		// Instead I'm now using memcpy to copy the ciphertext
+		// and the MAC into the buffer
         memcpy(sendBuffer, buffer, len+(16-(len%16)));
         memcpy(sendBuffer+len+(16-(len%16)), mac, macLen);
 
@@ -185,6 +196,8 @@ int main (int argc, char **argv) {
                 exit(1);
         }
 
+		// localAddr is the socket we are going to use to communicate
+		// servAddr is the remote socket we will connect to
         struct sockaddr_in localAddr;
         struct sockaddr_in servAddr;
         localAddr.sin_family = AF_INET;
@@ -194,14 +207,15 @@ int main (int argc, char **argv) {
         bind(sock, (struct sockaddr *)&localAddr, sizeof(localAddr));
 
         servAddr.sin_family = AF_INET;
-        servAddr.sin_port = htons(portNo); //8888
-        servAddr.sin_addr.s_addr = inet_addr(ipAddr); //"192.168.142.135"
-
-        connect(sock, (struct sockaddr *)&servAddr, sizeof(servAddr));
-
-        write(sock, sendBuffer, len+(16-(len%16)+macLen));
-
+        servAddr.sin_port = htons(portNo);  // Set the port to the port number
+        servAddr.sin_addr.s_addr = inet_addr(ipAddr); // The IP specified in the argument
 		
+		// Connect to the socket
+        connect(sock, (struct sockaddr *)&servAddr, sizeof(servAddr));
+		
+		// Send the data, woooo
+        write(sock, sendBuffer, len+(16-(len%16)+macLen));
+				
 	}	
 	
 	return 0;

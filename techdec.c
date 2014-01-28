@@ -9,9 +9,10 @@
 
 #define GCRY_CIPHER GCRY_CIPHER_AES128
 
-int local = 0;
+int local = 0; // Feax-Boolean for whether we are being run in local mode
 int port = 8888; // Use 8888 as default
 
+// Structure for command line options
 struct opt_spec options[] = {
 	{opt_text, OPT_NO_SF, "FILE", OPT_NO_METAVAR, "If specified with -l then decrypts FILE otherwise decrypts to FILE", OPT_NO_DATA},
     {opt_help, "h", "--help", OPT_NO_METAVAR, OPT_NO_HELP, OPT_NO_DATA},
@@ -106,16 +107,23 @@ int main (int argc, char **argv) {
 			return 1;
 		}
 		
+		// Lets figure out how big the file is
 		fseek(ifp, 0L, SEEK_END);
 		len = ftell(ifp);
 		rewind(ifp);
 		
+		// Allocate secure RAM for the buffer
 		buffer = gcry_calloc_secure(len, sizeof(char));
 
+		// Copy the input file to the buffer
 		fread(buffer, 1, len, ifp);
 		
+		// Since we're running locally, the name of the output file is the same as the argument
+		// without the .gt
 		fileName = argv[1];
 		size_t inLen = strlen(fileName);
+
+		// End the filename by replacing the "." with a NULL char
 		fileName[inLen-3] = '\0';
 	
 		fclose(ifp);
@@ -123,6 +131,7 @@ int main (int argc, char **argv) {
 	} else {
 		/*
 			Retrieve file from remote computer
+			Open a socket and listen for communication
 		*/
 		int sock;
 		int localSock;
@@ -144,13 +153,22 @@ int main (int argc, char **argv) {
 		
 		printf("%s", "Waiting for connection...\n");
 		
+		// Accepting the connection
 		localSock = accept(sock, NULL, NULL);
 		printf("%s", "Inbound file...\n");
-
+		
+		// Allocate some memory for the buffer
+		// len+(160(len%16)) is so that the memory we allocate is divisible 
+		// by the blocklength, which is 16
         len = 4096L;
 		buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
         long dataRead = 0L;
         int keepReading = 1;
+		
+		// Let's figure out how much data we're getting
+		// If I were to do this part over, I would instead open two connections
+		// from techrypt- where the first connection sends the 
+		// amount of data to be transmitted in the second connection
         while (keepReading) {
             dataRead = recv(localSock, buffer, len, MSG_PEEK);
             if (dataRead == len) {
@@ -161,10 +179,13 @@ int main (int argc, char **argv) {
                 keepReading = 0;
             }
         }
+		// How much data did we read?
         len = dataRead;
-
+		
+		// Now lets actually store it in the buffer
         dataRead = recv(localSock, buffer, len, 0);
-
+		
+		// Output file name is the command line argument
 		fileName = argv[1];
 			
 		close(sock);
@@ -180,18 +201,23 @@ int main (int argc, char **argv) {
 		gcry_md_open(&macHand, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
 		gcry_md_setkey(macHand, key, keyLength);
 		
+		// Generate the HMAC for the message we received
+		// Since we know there's a MAC of size macLen at the end
+		// we will only generate the hash based on the first
+		// len-macLen bytes
 		gcry_md_write(macHand, buffer, len-macLen);
 		mac = gcry_md_read(macHand, 0);
 		
 		/*
 			Strip HMAC from buffer
 		*/
-//		char *exMac = gcry_calloc_secure(macLen, sizeof(char));
-		char *exMac = buffer+(len-macLen); // TODO: figure out how to point mac at the last part of buffer that contains the HMAC
+		char *exMac = buffer+(len-macLen);
 		
 		/*
 			Check HMAC against our HMAC
 		*/
+		// I think this may be exploitable with a strategically placed NULL
+		// The use of memcmp could fix this...if I have time I will replace and check
 		if(strncmp(mac, exMac, macLen) != 0) {
 			exit(62);
 		}
