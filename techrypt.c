@@ -27,7 +27,7 @@ int main (int argc, char **argv) {
 	/*
 		Parse arguments
 	*/
-	if(opt_parse("usage: %s < input file > [options]", options, argv) == 0) {
+	if (opt_parse("usage: %s < input file > [options]", options, argv) == 0) {
 		opt_help(0, NULL);
 	}
 		
@@ -54,7 +54,7 @@ int main (int argc, char **argv) {
 	}
 
 	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
-	gcry_control(GCRYCTL_INIT_SECMEM, 65536, 0);
+	gcry_control(GCRYCTL_INIT_SECMEM, 131072, 0);
 	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
 	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
 
@@ -95,7 +95,7 @@ int main (int argc, char **argv) {
 		Open the file for reading and then copy to a buffer
 	*/	
 	FILE *ifp = fopen(argv[1], "rb");
-	if(ifp == 0) {
+	if (ifp == 0) {
 		printf("%s", "Could not open file");
 		return 1;
 	}
@@ -108,14 +108,21 @@ int main (int argc, char **argv) {
 	fseek(ifp, 0, SEEK_END);
 	len = ftell(ifp);
 	rewind(ifp);
-	
+		
 	// This is the buffer where we'll store the plaintext
 	// and convert to ciphertext
 	// We're allocating len+(16-(len%16)) bytes because
 	// the block cipher needs to be divisible by the blocklength
 	// which is 16 bytes. The use of calloc makes sure the extra
 	// memory will consist of NULLs so that we can strip them off later
-    char *buffer = gcry_calloc_secure(len+(16-(len%16)), sizeof(char));
+	char padding = 16-(len%16);
+    char *buffer = gcry_calloc_secure(len+padding, sizeof(char));
+	
+	/*
+		Padding Algorithm
+	*/
+	char *padBegin = buffer+len;
+	memset(padBegin, padding, padding);
 
 	// Copy the input file to the buffer
     fread(buffer, 1, len, ifp);
@@ -125,7 +132,7 @@ int main (int argc, char **argv) {
 	/*
 		Encrypt the buffer
 	*/
-    errorVal = gcry_cipher_encrypt(hand, buffer, len+(16-(len%16)), NULL, 0);	
+    errorVal = gcry_cipher_encrypt(hand, buffer, len+padding, NULL, 0);
 	
 	/*
 		If the local flag is set then we encrypt the file locally
@@ -138,7 +145,8 @@ int main (int argc, char **argv) {
 		*/
 		FILE *ofp = fopen(strcat(argv[1], ".gt"), "wb");
 
-		fwrite(buffer, 1, len+(16-(len%16)), ofp);
+		fwrite(buffer, 1, len+padding, ofp);
+		//fwrite()
 	
 		fclose(ofp);
 		
@@ -169,7 +177,7 @@ int main (int argc, char **argv) {
 		errorVal = gcry_md_open(&macHand, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
 		errorVal = gcry_md_setkey(macHand, key, keyLength);
 		
-		gcry_md_write(macHand, buffer, len+(16-(len%16)));
+		gcry_md_write(macHand, buffer, len+padding);
 		mac = gcry_md_read(macHand, 0);
 		
 		/*
@@ -177,7 +185,7 @@ int main (int argc, char **argv) {
 		*/
 		// Allocating a buffer big enought to hold 
 		// the ciphertext with the MAC added on at the end
-		char *sendBuffer = gcry_calloc_secure(len+(16-(len%16)+macLen), sizeof(char));
+		char *sendBuffer = gcry_calloc_secure(len+padding+macLen, sizeof(char));
 		
 		// Figured this out the hard way...
 		// Sometimes ciphertext includes NULLs, which 
@@ -185,8 +193,8 @@ int main (int argc, char **argv) {
 		//
 		// Instead I'm now using memcpy to copy the ciphertext
 		// and the MAC into the buffer
-        memcpy(sendBuffer, buffer, len+(16-(len%16)));
-        memcpy(sendBuffer+len+(16-(len%16)), mac, macLen);
+        memcpy(sendBuffer, buffer, len+padding);
+        memcpy(sendBuffer+len+padding, mac, macLen);
 
         int sock;
         sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -214,7 +222,7 @@ int main (int argc, char **argv) {
         connect(sock, (struct sockaddr *)&servAddr, sizeof(servAddr));
 		
 		// Send the data, woooo
-        write(sock, sendBuffer, len+(16-(len%16)+macLen));
+        write(sock, sendBuffer, len+padding+macLen);
 				
 	}	
 	

@@ -55,7 +55,7 @@ int main (int argc, char **argv) {
 	}
 
 	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
-	gcry_control(GCRYCTL_INIT_SECMEM, 65536, 0);
+	gcry_control(GCRYCTL_INIT_SECMEM, 131072, 0);
 	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
 	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
 
@@ -68,7 +68,7 @@ int main (int argc, char **argv) {
 	const char *salt = "NaCl";
 	size_t saltLen = sizeof(salt);
 	unsigned long iterations = 4096;
-	gpg_error_t errStatus; 
+	gpg_error_t errStatus;
 		
 	errStatus = gcry_kdf_derive(pass, passLen, GCRY_KDF_PBKDF2, GCRY_MD_SHA512, salt, saltLen, iterations, keyLength, key);
 			
@@ -90,6 +90,7 @@ int main (int argc, char **argv) {
 	
 	char *buffer;
 	long len;
+	size_t macLen = 0;
 	
 	/*
 		If the local flag is set then we encrypt the file locally
@@ -173,6 +174,7 @@ int main (int argc, char **argv) {
             dataRead = recv(localSock, buffer, len, MSG_PEEK);
             if (dataRead == len) {
                 len = len * 2;
+				sleep(.5);
                 buffer = gcry_realloc(buffer, len);
                 keepReading = 1;
             } else {
@@ -195,7 +197,7 @@ int main (int argc, char **argv) {
 		*/
 		gcry_md_hd_t macHand;
 	
-		size_t macLen = gcry_md_get_algo_dlen(GCRY_MD_SHA512);
+		macLen = gcry_md_get_algo_dlen(GCRY_MD_SHA512);
 		char *mac = gcry_calloc_secure(macLen, sizeof(char));
 		
 		gcry_md_open(&macHand, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC);
@@ -232,14 +234,14 @@ int main (int argc, char **argv) {
 	
 	
 	// Getting rid of extraneous NULLs we had to add on to make the message divisble by the block length
-	char *ptr = strchr(buffer, '\0');
-	len = ptr-buffer;
+	char *padPtr = buffer+len-macLen-1;
+	int writeLen = len-macLen-(*padPtr);
 	
 	/*
 		Write the buffer to a file
 	*/
 	FILE *ofp = fopen(fileName, "wb");
-	fwrite(buffer, 1, len, ofp);
+	fwrite(buffer, 1, writeLen, ofp);
 	
 	fclose(ofp);
 		
